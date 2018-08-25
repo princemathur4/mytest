@@ -330,12 +330,10 @@ for id in user_id_set:
                 break
 
 user_id_list = sorted(user_id_set)
-print(user_id_list)
 while (1):
     print("Select the User_ID from the options below: ")
     for i in range(len(user_id_list)):
         print(i+1,") ",user_id_list[i])
-    # print("1) 70006\n2) 70007\n3) 70009\n4) 70010\n5) 70088")
 
     try:
         choice = int(input("Enter your choice: "))
