@@ -166,174 +166,187 @@ def resp_bank_name(number):
             elif (number[i:i + 4] == "HDFC"):
                 return "HDFC"
 
-with open ("csvdata.csv","r") as csv_file:
-    global bank_user
-    csv_reader=csv.DictReader(csv_file)
-    user_id_set = set()
-    bank_user = {}
-    for line in csv_reader:
-        # print(line)
-        user_id_set.add(line["user_id"])
-    for id in user_id_set:
-        bank_user[id]= User(id)
 
-    for id in user_id_set:
+with open ("data.txt","r") as f:
+    with open("csvdata.csv","w+") as csv_file:
+        count=0
+        for line in f:
+            if(count>17):
+                csv_file.write(line)
+            count+=1
+
+        global bank_user,user_id_set
+        user_id_set = set()
+        bank_user = {}
         csv_file.seek(0)
-        bank_setlist=set()
+        csv_reader=csv.DictReader(csv_file)
         for line in csv_reader:
-            if(line['user_id']==id) :
-                if(line["number"]):
-                    name = resp_bank_name(line["number"])
-                if(name != None):
-                    bank_setlist.add(name)
+            # print(line)
+            user_id_set.add(line["user_id"])
+        for id in user_id_set:
+            bank_user[id]= User(id)
 
-            bank_user[id].set_banks(bank_setlist)
+        for id in user_id_set:
+            csv_file.seek(0)
+            bank_setlist=set()
+            for line in csv_reader:
+                if(line['user_id']==id) :
+                    if(line["number"]):
+                        name = resp_bank_name(line["number"])
+                        if(name != None):
+                            bank_setlist.add(name)
 
-    def yes_func(sms,id,name):
+                bank_user[id].set_banks(bank_setlist)
+
+        def yes_func(sms,id,name):
+            flag=0
+            for i in range(len(sms)):
+                if (sms[i:i+17] == " Transfer of  Rs."):
+                    flag=1
+            if(flag==1):
+                credited_money = yesbank_transfer(sms)
+                if(credited_money!=0):
+                    bank_user[id].deposit_or_credited(name, credited_money)
+
+        def sbi_func(sms,id,name):
+            flag=0
+            for i in range(len(sms)):
+                if(sms[0:0+7]=="Your AC"):
+                    flag=1
+                elif(sms[0:0+8]=="Your A/C"):
+                    flag=2
+                elif(sms[-2:]=="CR"):
+                    flag=3
+                elif(sms[i:i+8]=="Credited"):
+                    flag=4
+                elif(sms[i:i+9]=="Thank you"):
+                    flag=5
+                elif(sms[0:0+2]=="Rs"):
+                    flag=6
+            if(flag==1):
+                debited, bal = sbi_debited(sms)
+                if (debited != 0 and bal != 0):
+                    bank_user[id].withdrawal_or_debited(name, debited)
+                    bank_user[id].bank_dict[name]["Balance"] = bal
+            elif(flag==2):
+                debit, bal = sbi_debit(sms)
+                if (debit != 0 and bal != 0):
+                    bank_user[id].withdrawal_or_debited(name, debit)
+                    bank_user[id].bank_dict[name]["Balance"] = bal
+            elif(flag==3):
+                credit_bal = sbi_credit(sms)
+                if (credit_bal != 0):
+                    bank_user[id].deposit_or_credited(name, credit_bal)
+            elif(flag==4):
+                credited, bal = sbi_credited(sms)
+                if (credited != 0 and bal != 0):
+                    bank_user[id].deposit_or_credited(name, credited)
+                    bank_user[id].bank_dict[name]["Balance"] = bal
+            elif(flag==5):
+                purchase = sbibank(sms)
+                if (purchase != 0):
+                    bank_user[id].debitcard_transaction(name, purchase)
+            elif(flag==6):
+                withdrew, bal = sbi_withdrawn(sms)
+                if (withdrew != 0 and bal != 0):
+                    bank_user[id].withdrawal_or_debited(name, withdrew)
+                    bank_user[id].bank_dict[name]["Balance"] = bal
+
+        def hdfc_func(sms,id,name):
+            flag=0
+            for i in range(len(sms)):
+                if(sms[i:i+10]=="CARDMEMBER"):
+                    flag=1
+
+                elif(sms[i:i+4]=="Stmt"):
+                    flag=2
+                elif(sms[i:8]=="spent on"):
+                    flag=3
+                elif(sms[i:9]=="Greetings"):
+                    flag=4
+                elif(sms[i:6]=="OTP is"):
+                    flag=5
+                elif(sms[0:4]=="NEFT"):
+                    flag=6
+            if (flag == 1):
+                received = hdfc_credit_card_credited(sms)
+                if (received != 0):
+                    bank_user[id].creditcard_payback(name, received)
+            elif (flag == 2):
+                dues = hdfc_cc_stmt_dues(sms)
+                if (dues != 0):
+                    bank_user[id].bank_dict[name]["credit_due"] = dues
+            elif (flag == 3):
+                spent, bal = hdfc_credit_card_spent(sms)
+                if (spent != 0 and bal != 0):
+                    bank_user[id].creditcard_transaction(name, spent)
+                    bank_user[id].bank_dict[name]["creditcard_balance"] = bal
+            elif (flag == 4):
+                dues = hdfc_credit_card_due(sms)
+                if (dues != 0):
+                    bank_user[id].bank_dict[bank]["credit_due"] = dues
+            elif (flag == 5):
+                spent = hdfc_credit_card_otp(sms)
+                if (spent != 0):
+                    bank_user[id].creditcard_transaction(name, spent)
+            elif (flag == 6):
+                bal = hdfc_neft(sms)
+                bank_user[id].bank_dict[name]["Balance"] = bal
+
+
+        for id in user_id_set:
+            csv_file.seek(0)
+            for line in csv_reader:
+                if(line['user_id']==id ) :
+                    if(line["number"] and line["body"]):
+                        name=resp_bank_name(line["number"])
+
+                        if(name=="YES"):
+                            yes_func(line["body"],id,name)
+                        elif(name=="SBI"):
+                            sbi_func(line["body"],id,name)
+                        elif(name=="HDFC"):
+                            hdfc_func(line["body"],id,name)
+
+
+for id in user_id_set:
+    flag = 0
+    for key in bank_user[id].bank_dict:
         flag=0
-        for i in range(len(sms)):
-            if (sms[i:i+17] == " Transfer of  Rs."):
-                flag=1
-        if(flag==1):
-            credited_money = yesbank_transfer(sms)
-            if(credited_money!=0):
-                bank_user[id].deposit_or_credited(name, credited_money)
+        if ((bank_user[id].bank_dict[key]['Balance']==0) and(bank_user[id].bank_dict[key]['total_transaction']==0)and(bank_user[id].bank_dict[key]['credit_spent']==0)and(bank_user[id].bank_dict[key]['credit_returned']==0) and (bank_user[id].bank_dict[key]['creditcard_balance']==0)):
+            del bank_user[id].bank_dict[key]
+            flag=1
+            break
+    if(flag==1):
+        for key in bank_user[id].bank_dict:
+            flag = 0
+            if ((bank_user[id].bank_dict[key]['Balance'] == 0) and (
+                    bank_user[id].bank_dict[key]['total_transaction'] == 0) and (
+                    bank_user[id].bank_dict[key]['credit_spent'] == 0) and (
+                    bank_user[id].bank_dict[key]['credit_returned'] == 0) and (
+                    bank_user[id].bank_dict[key]['creditcard_balance'] == 0)):
+                del bank_user[id].bank_dict[key]
+                flag = 1
+                break
 
-    def sbi_func(sms,id,name):
-        flag=0
-        for i in range(len(sms)):
-            if(sms[0:0+7]=="Your AC"):
-                flag=1
-            elif(sms[0:0+8]=="Your A/C"):
-                flag=2
-            elif(sms[-2:]=="CR"):
-                flag=3
-            elif(sms[i:i+8]=="Credited"):
-                flag=4
-            elif(sms[i:i+9]=="Thank you"):
-                flag=5
-            elif(sms[0:0+2]=="Rs"):
-                flag=6
-        if(flag==1):
-            debited, bal = sbi_debited(sms)
-            if (debited != 0 and bal != 0):
-                bank_user[id].withdrawal_or_debited(name, debited)
-                bank_user[id].bank_dict[name]["Balance"] = bal
-        elif(flag==2):
-            debit, bal = sbi_debit(sms)
-            if (debit != 0 and bal != 0):
-                bank_user[id].withdrawal_or_debited(name, debit)
-                bank_user[id].bank_dict[name]["Balance"] = bal
-        elif(flag==3):
-            credit_bal = sbi_credit(sms)
-            if (credit_bal != 0):
-                bank_user[id].deposit_or_credited(name, credit_bal)
-        elif(flag==4):
-            credited, bal = sbi_credited(sms)
-            if (credited != 0 and bal != 0):
-                bank_user[id].deposit_or_credited(name, credited)
-                bank_user[id].bank_dict[name]["Balance"] = bal
-        elif(flag==5):
-            purchase = sbibank(sms)
-            if (purchase != 0):
-                bank_user[id].debitcard_transaction(name, purchase)
-        elif(flag==6):
-            withdrew, bal = sbi_withdrawn(sms)
-            if (withdrew != 0 and bal != 0):
-                bank_user[id].withdrawal_or_debited(name, withdrew)
-                bank_user[id].bank_dict[name]["Balance"] = bal
-
-    def hdfc_func(sms,id,name):
-        flag=0
-        for i in range(len(sms)):
-            if(sms[i:i+10]=="CARDMEMBER"):
-                flag=1
-
-            elif(sms[i:i+4]=="Stmt"):
-                flag=2
-            elif(sms[i:8]=="spent on"):
-                flag=3
-            elif(sms[i:9]=="Greetings"):
-                flag=4
-            elif(sms[i:6]=="OTP is"):
-                flag=5
-            elif(sms[0:4]=="NEFT"):
-                flag=6
-        if (flag == 1):
-            received = hdfc_credit_card_credited(sms)
-            if (received != 0):
-                bank_user[id].creditcard_payback(name, received)
-        elif (flag == 2):
-            dues = hdfc_cc_stmt_dues(sms)
-            if (dues != 0):
-                bank_user[id].bank_dict[name]["credit_due"] = dues
-        elif (flag == 3):
-            spent, bal = hdfc_credit_card_spent(sms)
-            if (spent != 0 and bal != 0):
-                bank_user[id].creditcard_transaction(name, spent)
-                bank_user[id].bank_dict[name]["creditcard_balance"] = bal
-        elif (flag == 4):
-            dues = hdfc_credit_card_due(sms)
-            if (dues != 0):
-                bank_user[id].bank_dict[bank]["credit_due"] = dues
-        elif (flag == 5):
-            spent = hdfc_credit_card_otp(sms)
-            if (spent != 0):
-                bank_user[id].creditcard_transaction(name, spent)
-        elif (flag == 6):
-            bal = hdfc_neft(sms)
-            bank_user[id].bank_dict[name]["Balance"] = bal
-
-
-    for id in user_id_set:
-        csv_file.seek(0)
-        for line in csv_reader:
-            if(line['user_id']==id ) :
-                if(line["number"] and line["body"]):
-                    name=resp_bank_name(line["number"])
-
-                    if(name=="YES"):
-                        yes_func(line["body"],id,name)
-                    elif(name=="SBI"):
-                        sbi_func(line["body"],id,name)
-                    elif(name=="HDFC"):
-                        hdfc_func(line["body"],id,name)
-
-
-
-
+user_id_list = sorted(user_id_set)
+print(user_id_list)
 while (1):
-    print("Select the User_name from the options below: ")
-    print("1) 70006\n2) 70007\n3) 70009\n4) 70010\n5) 70088")
-    choice = int(input("Enter your choice: "))
-    if (choice == 1):
-        print("Account details for USER_ID: 70006 :")
-        for i in bank_user["70006"].bank_dict:
-            print(i,":",bank_user["70006"].bank_dict[i])
-        print()
-    elif (choice == 2):
-        print("Account details for USER_ID: 70007 :")
-        for i in bank_user["70007"].bank_dict:
-            print(i,":",bank_user["70007"].bank_dict[i])
-        print()
-    elif (choice == 3):
-        print("Account details for USER_ID: 70009 :")
-        for i in bank_user["70009"].bank_dict:
-            print(i,":",bank_user["70009"].bank_dict[i])
-        print()
+    print("Select the User_ID from the options below: ")
+    for i in range(len(user_id_list)):
+        print(i+1,") ",user_id_list[i])
+    # print("1) 70006\n2) 70007\n3) 70009\n4) 70010\n5) 70088")
 
-    elif (choice == 4):
-        print("Account details for USER_ID: 70010 :")
-        for i in bank_user["70010"].bank_dict:
-            print(i,":",bank_user["70010"].bank_dict[i])
-        print()
+    try:
+        choice = int(input("Enter your choice: "))
+        if (1<= choice <=len(user_id_list)):
+            print("Account details for USER_ID: ",user_id_list[choice-1] ,":")
+            for i in bank_user[user_id_list[choice-1]].bank_dict:
+                print(i,"Bank :",bank_user[user_id_list[choice-1]].bank_dict[i])
+            print()
 
-    elif (choice == 5):
-        print("Account details for USER_ID: 70088 :")
-        for i in bank_user["70088"].bank_dict:
-            print(i,":",bank_user["70088"].bank_dict[i])
-        print()
-
-    else:
-        print("Invalid option.")
-        continue
+        else:
+            print("Invalid option.")
+            continue
+    except (ValueError):
+        print("INVALID INPUT, try again")
