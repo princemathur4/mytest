@@ -1,5 +1,6 @@
 # mytest
-Regular Expression using python
+Regular Expression using python.
+
 Steps to run the Code:
 1) Copy all the ghostbin data, from line 0 to the last line, to a notepad file and name it as "data.txt".
 2) Paste the "data.txt" in the same folder where the "class_regex.py" is present.
