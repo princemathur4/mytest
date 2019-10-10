@@ -6,5 +6,6 @@ Steps to run the Code:
 2) Paste the "data.txt" in the same folder where the "class_regex.py" is present.
 3) Run the python file named as "class_regex.py".
 4) Input options as 1,2,3 etc. to see the output. 
+5) Good luck
 
 Note: The code will work only on Python Version 3 or above. (My version: Version 3.6)
